@@ -1,13 +1,15 @@
 package main
 
 import (
-	"bufio"
-	"fmt"
+	"bytes"
+	"io"
 	"strings"
+	"sync"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/docker/docker/daemon/logger"
+	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/moby/moby/daemon/logger/awslogs"
 	"github.com/samalba/dockerclient"
 )
@@ -24,8 +26,6 @@ func stream(client *dockerclient.DockerClient, region, container, group, stream 
 	})
 	defer rc.Close()
 
-	fmt.Println("Logs")
-
 	// We load the stream backend so we can push these logs to the channel.
 	cw, err := awslogs.New(logger.Info{
 		Config: map[string]string{
@@ -39,16 +39,37 @@ func stream(client *dockerclient.DockerClient, region, container, group, stream 
 		return err
 	}
 
-	r := bufio.NewReader(rc)
+	var (
+		stdout = bytes.NewBuffer(nil)
+		stderr = bytes.NewBuffer(nil)
+	)
 
-	for {
-		line, err := r.ReadString('\n')
-		if err != nil {
-			return err
+	go func() {
+		// Refer to this doc block for why we pass this through stdcopy.
+		// https://github.com/moby/moby/blob/master/client/container_logs.go#L23
+		_, err = stdcopy.StdCopy(stdout, stderr, rc)
+		if err != nil && err != io.EOF {
+			log.WithFields(log.Fields{"group": group, "stream": stream, "container": container}).Info(err)
+			return
 		}
+	}()
 
-		line = strings.TrimSpace(line)
-		if line != "" {
+	var (
+		exit     = make(chan bool)
+		stdoutCh = readerToChannel(stdout, exit)
+		stderrCh = readerToChannel(stderr, exit)
+	)
+
+	// Listen for stdout or stderr messages from the channels. We then hand these
+	// off to the queue backend.
+	var wg sync.WaitGroup
+
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+
+		for line := range stdoutCh {
 			err := cw.Log(&logger.Message{
 				Line:      []byte(line),
 				Timestamp: time.Now(),
@@ -57,9 +78,64 @@ func stream(client *dockerclient.DockerClient, region, container, group, stream 
 				log.WithFields(log.Fields{"group": group, "stream": stream, "container": container}).Info("Stdout: %s", err)
 			}
 		}
-	}
+	}()
+
+	go func() {
+		defer wg.Done()
+
+		for line := range stderrCh {
+			err := cw.Log(&logger.Message{
+				Line:      []byte(line),
+				Timestamp: time.Now(),
+			})
+			if err != nil {
+				log.WithFields(log.Fields{"group": group, "stream": stream, "container": container}).Info("Stdout: %s", err)
+			}
+		}
+	}()
+
+	wg.Wait()
 
 	log.WithFields(log.Fields{"group": group, "stream": stream, "container": container}).Info("Finished capturing logs")
 
 	return nil
+}
+
+// Helper function to handle log streams and massage them into a string representation.
+func readerToChannel(reader *bytes.Buffer, exit <-chan bool) <-chan string {
+	var (
+		channel = make(chan string)
+		limiter = time.Tick(100 * time.Millisecond)
+	)
+
+	go func() {
+		for {
+			select {
+			case <-exit:
+				close(channel)
+				return
+			default:
+				<-limiter
+
+				// This avoids issues when trying to ReadSring and there is no data
+				// being passed in.
+				if reader.Len() <= 0 {
+					continue
+				}
+
+				line, err := reader.ReadString('\n')
+				if err != nil && err != io.EOF {
+					close(channel)
+					return
+				}
+
+				line = strings.TrimSpace(line)
+				if line != "" {
+					channel <- line
+				}
+			}
+		}
+	}()
+
+	return channel
 }
