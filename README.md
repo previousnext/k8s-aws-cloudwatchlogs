@@ -1,6 +1,8 @@
 Kubernetes: AWS CloudWatch Logs
 ===============================
 
+[![CircleCI](https://circleci.com/gh/previousnext/k8s-pagerduty.svg?style=svg)](https://circleci.com/gh/previousnext/k8s-pagerduty)
+
 DaemonSet for pushing logs to AWS CloudWatch Logs.
 
 * Uses "labels" to determine CloudWatch Logs "group" and "stream" names.
