@@ -3,10 +3,10 @@ package main
 import (
 	"fmt"
 	"os"
-	"time"
+	"sync"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/fsouza/go-dockerclient"
+	"github.com/samalba/dockerclient"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
@@ -18,6 +18,8 @@ var (
 func main() {
 	kingpin.Parse()
 
+	var wg sync.WaitGroup
+
 	// Determine the hostname (name of the pod) so we can use it for filtering.
 	hostname, err := os.Hostname()
 	if err != nil {
@@ -26,12 +28,12 @@ func main() {
 
 	log.Info("Connecting to Docker...")
 
-	client, err := docker.NewClient(*cliEndpoint)
+	client, err := dockerclient.NewDockerClient(*cliEndpoint, nil)
 	if err != nil {
 		panic(err)
 	}
 
-	containers, err := client.ListContainers(docker.ListContainersOptions{})
+	containers, err := client.ListContainers(false, false, "")
 	if err != nil {
 		panic(err)
 	}
@@ -40,58 +42,52 @@ func main() {
 	for _, container := range containers {
 		namespace, pod, name, err := filter(container.Labels, hostname)
 		if err != nil {
-			log.WithFields(log.Fields{"container": container.ID}).Info(err)
+			log.WithFields(log.Fields{"container": container.Id}).Info(err)
 			continue
 		}
 
-		go func(c docker.APIContainers) {
-			err = stream(client, *cliRegion, container.ID, namespace, fmt.Sprintf("%s-%s", pod, name))
+		wg.Add(1)
+
+		go func(container dockerclient.Container) {
+			defer wg.Done()
+
+			err = stream(client, *cliRegion, container.Id, namespace, fmt.Sprintf("%s-%s", pod, name))
 			if err != nil {
-				log.WithFields(log.Fields{"container": container.ID}).Info(err)
+				log.WithFields(log.Fields{"container": container.Id}).Info(err)
 			}
 		}(container)
 	}
 
-	// Listening for changes in container state.
-	//  * New containers
-	//  * Removing old containers
-	listener := make(chan *docker.APIEvents)
-	err = client.AddEventListener(listener)
-	if err != nil {
-		log.Fatal(err)
-	}
+	// This will allow us to track new containers.
+	client.StartMonitorEvents(func(event *dockerclient.Event, ec chan error, args ...interface{}) {
+		// Only add our stream listener to new containers.
+		if event.Status != "start" {
+			return
+		}
 
-	// This will ensure our events listener will close.
-	defer func() {
-		err = client.RemoveEventListener(listener)
+		container, err := client.InspectContainer(event.ID)
 		if err != nil {
-			log.Fatal(err)
+			log.WithFields(log.Fields{"container": event.ID}).Info(err)
+			return
 		}
-	}()
 
-	limiter := time.Tick(time.Second * 10)
-	for {
-		select {
-		case msg := <-listener:
-			// This means we can register another routine for listening to
-			// stdout and stderr of these containers.
-			if msg.Status == "start" {
-				container, err := client.InspectContainer(msg.ID)
-				if err != nil {
-					log.WithFields(log.Fields{"container": msg.ID}).Info(err)
-					continue
-				}
+		namespace, pod, name, err := filter(container.Config.Labels, hostname)
+		if err != nil {
+			log.WithFields(log.Fields{"container": container.Id}).Info(err)
+			return
+		}
 
-				namespace, pod, name, err := filter(container.Config.Labels, hostname)
-				if err != nil {
-					log.WithFields(log.Fields{"container": container.ID}).Info(err)
-					continue
-				}
+		wg.Add(1)
 
-				go stream(client, *cliRegion, container.ID, namespace, fmt.Sprintf("%s-%s", pod, name))
+		go func(container *dockerclient.ContainerInfo) {
+			defer wg.Done()
+
+			err = stream(client, *cliRegion, container.Id, namespace, fmt.Sprintf("%s-%s", pod, name))
+			if err != nil {
+				log.WithFields(log.Fields{"container": container.Id}).Info(err)
 			}
-		case <-limiter:
-			break
-		}
-	}
+		}(container)
+	}, nil)
+
+	wg.Wait()
 }
