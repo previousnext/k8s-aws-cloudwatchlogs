@@ -16,10 +16,7 @@ import (
 func stream(client *docker.Client, region, container, group, stream string) error {
 	log.WithFields(log.Fields{"group": group, "stream": stream, "container": container}).Info("Started capturing logs")
 
-	var (
-		stdoutBuffer bytes.Buffer
-		stderrBuffer bytes.Buffer
-	)
+	var stdoutBuffer bytes.Buffer
 
 	exit := make(chan bool)
 
@@ -31,22 +28,20 @@ func stream(client *docker.Client, region, container, group, stream string) erro
 			Stdout:       true,
 			Stderr:       true,
 			Tail:         "all",
-			Timestamps:   true,
-			RawTerminal:  false,
+			RawTerminal:  true,
 			OutputStream: &stdoutBuffer,
-			ErrorStream:  &stderrBuffer,
 		})
 		close(exit)
 	}()
 
 	stdoutCh := readerToChannel(&stdoutBuffer, exit)
-	stderrCh := readerToChannel(&stderrBuffer, exit)
 
 	// We load the stream backend so we can push these logs to the channel.
 	cw, err := awslogs.New(logger.Info{
 		Config: map[string]string{
 			"awslogs-region":       region,
-			"awslogs-create-group": group,
+			"awslogs-create-group": "true",
+			"awslogs-group":        group,
 			"awslogs-stream":       stream,
 		},
 	})
@@ -57,29 +52,23 @@ func stream(client *docker.Client, region, container, group, stream string) erro
 	// Listen for stdout or stderr messages from the channels. We then hand these
 	// off to the queue backend.
 	var wg sync.WaitGroup
-	wg.Add(2)
+
+	wg.Add(1)
+
 	go func() {
 		defer wg.Done()
+
 		for value := range stdoutCh {
 			err := cw.Log(&logger.Message{
-				Line: []byte(value),
+				Line:      []byte(value),
+				Timestamp: time.Now(),
 			})
 			if err != nil {
 				log.WithFields(log.Fields{"group": group, "stream": stream, "container": container}).Info("Stdout: %s", err)
 			}
 		}
 	}()
-	go func() {
-		defer wg.Done()
-		for value := range stderrCh {
-			err := cw.Log(&logger.Message{
-				Line: []byte(value),
-			})
-			if err != nil {
-				log.WithFields(log.Fields{"group": group, "stream": stream, "container": container}).Info("Stderr: %s", err)
-			}
-		}
-	}()
+
 	wg.Wait()
 
 	log.WithFields(log.Fields{"group": group, "stream": stream, "container": container}).Info("Finished capturing logs")
@@ -89,9 +78,10 @@ func stream(client *docker.Client, region, container, group, stream string) erro
 
 // Helper function to handle log streams and massage them into a string representation.
 func readerToChannel(reader *bytes.Buffer, exit <-chan bool) <-chan string {
-	channel := make(chan string)
-
-	limiter := time.Tick(100 * time.Millisecond)
+	var (
+		channel = make(chan string)
+		limiter = time.Tick(100 * time.Millisecond)
+	)
 
 	go func() {
 		for {
@@ -121,6 +111,5 @@ func readerToChannel(reader *bytes.Buffer, exit <-chan bool) <-chan string {
 			}
 		}
 	}()
-
 	return channel
 }
