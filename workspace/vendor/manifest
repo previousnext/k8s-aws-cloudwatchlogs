@@ -21,11 +21,35 @@
 			"branch": "master"
 		},
 		{
+			"importpath": "github.com/gobwas/glob",
+			"repository": "https://github.com/gobwas/glob",
+			"revision": "51eb1ee00b6d931c66d229ceeb7c31b985563420",
+			"branch": "master"
+		},
+		{
+			"importpath": "github.com/hpcloud/tail",
+			"repository": "https://github.com/hpcloud/tail",
+			"revision": "37f4271387456dd1bf82ab1ad9229f060cc45386",
+			"branch": "master"
+		},
+		{
+			"importpath": "github.com/jprichardson/readline-go",
+			"repository": "https://github.com/jprichardson/readline-go",
+			"revision": "69d39989b17ebcfba22d05171eb786919c04b896",
+			"branch": "master"
+		},
+		{
 			"importpath": "github.com/pmezard/go-difflib/difflib",
 			"repository": "https://github.com/pmezard/go-difflib",
 			"revision": "792786c7400a136282c1664665ae0a8db921c6c2",
 			"branch": "master",
 			"path": "/difflib"
+		},
+		{
+			"importpath": "github.com/radovskyb/watcher",
+			"repository": "https://github.com/radovskyb/watcher",
+			"revision": "6145e1439b9de93806925353403f91d2abbad8a5",
+			"branch": "master"
 		},
 		{
 			"importpath": "github.com/samalba/dockerclient",
@@ -52,6 +76,25 @@
 			"revision": "05e8a0eda380579888eb53c394909df027f06991",
 			"branch": "master",
 			"path": "/mock"
+		},
+		{
+			"importpath": "golang.org/x/sys/unix",
+			"repository": "https://go.googlesource.com/sys",
+			"revision": "2d6f6f883a06fc0d5f4b14a81e4c28705ea64c15",
+			"branch": "master",
+			"path": "/unix"
+		},
+		{
+			"importpath": "gopkg.in/fsnotify.v1",
+			"repository": "https://gopkg.in/fsnotify.v1",
+			"revision": "629574ca2a5df945712d3079857300b5e4da0236",
+			"branch": "master"
+		},
+		{
+			"importpath": "gopkg.in/tomb.v1",
+			"repository": "https://gopkg.in/tomb.v1",
+			"revision": "dd632973f1e7218eb1089048e0798ec9ae7dceb8",
+			"branch": "v1"
 		}
 	]
 }
