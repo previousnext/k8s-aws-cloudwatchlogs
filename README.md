@@ -3,6 +3,8 @@ Kubernetes: AWS CloudWatch Logs
 
 [![CircleCI](https://circleci.com/gh/previousnext/k8s-pagerduty.svg?style=svg)](https://circleci.com/gh/previousnext/k8s-pagerduty)
 
+![Diagram](/docs/diagram.png "Diagram")
+
 DaemonSet for pushing logs to AWS CloudWatch Logs.
 
 * Load logs from `/var/log/containers`
