@@ -7,7 +7,6 @@ import (
 	"os"
 	"strings"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/gobwas/glob"
 	"github.com/hpcloud/tail"
 )
@@ -70,11 +69,7 @@ func (lf LogFile) Stream(start bool) (chan Log, error) {
 
 		err := json.Unmarshal([]byte(line.Text), &l)
 		if err != nil {
-			log.WithFields(log.Fields{
-				"namespace": lf.Namespace,
-				"pod":       lf.Pod,
-				"container": lf.Container,
-			}).Fatal(err)
+			return logs, fmt.Errorf("failed to unmarshal line for %s/%s/%s: %s", lf.Namespace, lf.Pod, lf.Namespace, err)
 		}
 
 		logs <- l

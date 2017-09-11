@@ -4,8 +4,8 @@ import (
 	"os"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/previousnext/k8s-aws-cloudwatchlogs/k8slog"
+	"github.com/prometheus/common/log"
 	"github.com/radovskyb/watcher"
 )
 

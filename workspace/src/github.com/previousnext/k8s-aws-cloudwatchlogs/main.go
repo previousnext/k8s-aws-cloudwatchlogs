@@ -1,21 +1,28 @@
 package main
 
 import (
+	"net/http"
 	"os"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/previousnext/k8s-aws-cloudwatchlogs/exporter"
 	"github.com/previousnext/k8s-aws-cloudwatchlogs/source"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/prometheus/common/log"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 var (
-	cliDirectory = kingpin.Flag("dir", "The Kubernetes container logs directory").Default("/var/log/containers").OverrideDefaultFromEnvar("KUBERNETES_CONTAINER_LOGS").String()
-	cliRegion    = kingpin.Flag("region", "The AWS region to store the logs").Default("ap-southeast-2").OverrideDefaultFromEnvar("AWS_REGION").String()
+	cliDirectory  = kingpin.Flag("dir", "The Kubernetes container logs directory").Default("/var/log/containers").OverrideDefaultFromEnvar("KUBERNETES_CONTAINER_LOGS").String()
+	cliRegion     = kingpin.Flag("region", "The AWS region to store the logs").Default("ap-southeast-2").OverrideDefaultFromEnvar("AWS_REGION").String()
+	cliPrometheus = kingpin.Flag("prometheus", "Prometheus metrics endpoint").Default(":9000").OverrideDefaultFromEnvar("PROMETHEUS").String()
 )
 
 func main() {
 	kingpin.Parse()
+
+	log.Info("Serving Prometheus metrics endpoint")
+
+	go metrics(*cliPrometheus)
 
 	log.Info("Retrieving a list of existing log files")
 
@@ -46,8 +53,13 @@ func main() {
 func push(file os.FileInfo, new bool) {
 	err := exporter.Push(*cliRegion, *cliDirectory, file, new)
 	if err != nil {
-		log.WithFields(log.Fields{"file": file.Name()}).Error("Failed to push file: %s", err)
+		log.Fatal("Failed to push file: %s", err)
 	} else {
-		log.WithFields(log.Fields{"file": file.Name()}).Info("Finished pushing file")
+		log.Info("Finished pushing file")
 	}
+}
+
+func metrics(port string) {
+	http.Handle("/metrics", promhttp.Handler())
+	log.Fatal(http.ListenAndServe(port, nil))
 }
