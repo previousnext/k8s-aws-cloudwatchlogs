@@ -30,7 +30,11 @@ func Validate(file os.FileInfo) bool {
 
 // New sets up a new file for streaming.
 func New(dir string, file os.FileInfo) (*LogFile, error) {
-	namespace, pod, container, err := metadata(file)
+	if !Validate(file) {
+		return nil, fmt.Errorf("not a valid file with format: %s", format)
+	}
+
+	namespace, pod, container, err := metadata(file.Name())
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract namespace, pod and container info: %s", format)
 	}
@@ -78,13 +82,9 @@ func (lf LogFile) Stream(start bool) (chan Log, error) {
 	return logs, nil
 }
 
-func metadata(file os.FileInfo) (string, string, string, error) {
-	if !Validate(file) {
-		return "", "", "", fmt.Errorf("not a valid file with format: %s", format)
-	}
-
+func metadata(file string) (string, string, string, error) {
 	// Remove the ".log" from the file.
-	name := strings.Replace(file.Name(), ".log", "", 0)
+	name := strings.Replace(file, ".log", "", 0)
 
 	// Split the string down so we can return their metadata.
 	var (
@@ -92,5 +92,5 @@ func metadata(file os.FileInfo) (string, string, string, error) {
 		container = strings.Split(pod[2], "-")
 	)
 
-	return pod[0], pod[1], container[0], nil
+	return pod[1], pod[0], container[0], nil
 }

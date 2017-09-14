@@ -11,7 +11,7 @@ spec:
     spec:
       containers:
       - name: k8s-aws-cloudwatchlogs
-        image: previousnext/k8s-aws-cloudwatchlogs:0.0.1
+        image: previousnext/k8s-aws-cloudwatchlogs:2.0.0
         env:
         - name: AWS_ACCESS_KEY_ID
           value: "xxxxxxxxxx"
@@ -27,9 +27,9 @@ spec:
             cpu: 5m
             memory: 25Mi
         volumeMounts:
-        - name: docker
-          mountPath: /tmp/docker.sock
+        - name: logs
+          mountPath: /var/log/containers
       volumes:
-      - name: docker
+      - name: logs
         hostPath:
-          path: /var/run/docker.sock
+          path: /var/log/containers
