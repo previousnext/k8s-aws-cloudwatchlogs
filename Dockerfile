@@ -1,6 +1,7 @@
 FROM golang:1.8
 ADD workspace /go
-RUN make build
+RUN go get github.com/golang/lint/golint
+RUN make lint test build
 
 FROM alpine:latest
 RUN apk --no-cache add ca-certificates
