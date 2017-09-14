@@ -53,7 +53,7 @@ func main() {
 func push(file os.FileInfo, new bool) {
 	err := exporter.Push(*cliRegion, *cliDirectory, file, new)
 	if err != nil {
-		log.Fatal("Failed to push file: %s", err)
+		log.Info("Failed to push file:", err)
 	} else {
 		log.Info("Finished pushing file")
 	}
