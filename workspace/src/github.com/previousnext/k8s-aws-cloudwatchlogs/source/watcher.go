@@ -4,7 +4,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/previousnext/k8s-aws-cloudwatchlogs/k8slog"
 	"github.com/prometheus/common/log"
 	"github.com/radovskyb/watcher"
 )
@@ -29,7 +28,7 @@ func Watch(dir string) (chan os.FileInfo, error) {
 		for {
 			select {
 			case event := <-w.Event:
-				if !k8slog.Validate(event.FileInfo) {
+				if !Valid(event.FileInfo) {
 					break
 				}
 
